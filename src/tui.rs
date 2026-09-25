@@ -58,15 +58,17 @@ fn render(frame: &mut Frame, state: &DashboardState) {
 
     frame.render_widget(
         Paragraph::new(state.title.clone().bold())
-            .block(Block::default().borders(Borders::ALL).title("NutyLabs"))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title("www.nutylabs.com"),
+            )
             .style(Style::default().fg(Color::Cyan)),
         header,
     );
 
     let mut overview_lines = vec![
-        Line::from(format!("Status: {}", state.status)),
         Line::from(format!("Uptime: {}s", state.uptime_seconds)),
-        Line::from(format!("Refreshes: {}", state.refresh_count)),
         Line::from(""),
     ];
 
