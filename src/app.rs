@@ -34,9 +34,10 @@ impl DashboardState {
         system.refresh_memory();
         system.refresh_cpu_usage();
         let (memory_total_bytes, memory_used_bytes, cpu_usages) = collect_system_metrics(&system);
+        let hostname = System::host_name().unwrap_or_else(|| "System Monitor".to_string());
 
         Self {
-            title: "System Monitor".to_string(),
+            title: hostname,
             status: "Running".to_string(),
             uptime_seconds: 0,
             server_addr: server_addr.into(),

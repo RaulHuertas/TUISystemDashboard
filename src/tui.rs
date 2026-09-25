@@ -58,7 +58,7 @@ fn render(frame: &mut Frame, state: &DashboardState) {
 
     frame.render_widget(
         Paragraph::new(state.title.clone().bold())
-            .block(Block::default().borders(Borders::ALL).title("Title"))
+            .block(Block::default().borders(Borders::ALL).title("NutyLabs"))
             .style(Style::default().fg(Color::Cyan)),
         header,
     );
