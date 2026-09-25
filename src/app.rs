@@ -97,6 +97,10 @@ fn collect_network_interfaces() -> Vec<NetworkInterfaceInfo> {
 
     if let Ok(addrs) = if_addrs::get_if_addrs() {
         for iface in addrs {
+            if is_loopback_interface(&iface.name) {
+                continue;
+            }
+
             let ip = iface.ip().to_string();
             let entry =
                 interfaces
@@ -121,6 +125,11 @@ fn collect_network_interfaces() -> Vec<NetworkInterfaceInfo> {
     if let Ok(entries) = fs::read_dir(sys_class_net) {
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().to_string();
+
+            if is_loopback_interface(&name) {
+                continue;
+            }
+
             let base_path = entry.path();
 
             let interface =
@@ -146,6 +155,10 @@ fn collect_network_interfaces() -> Vec<NetworkInterfaceInfo> {
     }
 
     interfaces.into_values().collect()
+}
+
+fn is_loopback_interface(name: &str) -> bool {
+    name == "lo"
 }
 
 fn read_trimmed(path: impl AsRef<Path>) -> Option<String> {
