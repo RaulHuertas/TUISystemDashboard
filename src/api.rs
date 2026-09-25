@@ -1,9 +1,4 @@
-use axum::{
-    Json, Router,
-    extract::State,
-    response::IntoResponse,
-    routing::get,
-};
+use axum::{Json, Router, extract::State, response::IntoResponse, routing::get};
 use std::net::SocketAddr;
 
 use crate::app::{DashboardState, SharedState};

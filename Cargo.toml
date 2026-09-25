@@ -6,6 +6,8 @@ edition = "2024"
 [dependencies]
 axum = "0.8"
 crossterm = "0.29"
+if-addrs = "0.13"
 ratatui = "0.29"
 serde = { version = "1", features = ["derive"] }
+sysinfo = "0.39"
 tokio = { version = "1", features = ["full"] }

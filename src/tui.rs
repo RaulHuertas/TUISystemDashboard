@@ -7,10 +7,10 @@ use crossterm::{
 };
 use ratatui::{
     DefaultTerminal, Frame,
-    layout::{Constraint, Layout},
+    layout::{Constraint, Direction, Layout},
     style::{Color, Style, Stylize},
-    text::Line,
-    widgets::{Block, Borders, Paragraph},
+    text::{Line, Span},
+    widgets::{Bar, BarChart, BarGroup, Block, Borders, Gauge, Paragraph},
 };
 
 use crate::app::{DashboardState, SharedState};
@@ -53,8 +53,8 @@ fn render(frame: &mut Frame, state: &DashboardState) {
     ])
     .areas(frame.area());
 
-    let [left, right] = Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
-        .areas(body);
+    let [left, right] =
+        Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)]).areas(body);
 
     frame.render_widget(
         Paragraph::new(state.title.clone().bold())
@@ -63,25 +63,104 @@ fn render(frame: &mut Frame, state: &DashboardState) {
         header,
     );
 
+    let mut overview_lines = vec![
+        Line::from(format!("Status: {}", state.status)),
+        Line::from(format!("Uptime: {}s", state.uptime_seconds)),
+        Line::from(format!("Refreshes: {}", state.refresh_count)),
+        Line::from(""),
+    ];
+
+    if state.network_interfaces.is_empty() {
+        overview_lines.push(Line::from("No network interfaces found"));
+    } else {
+        for interface in &state.network_interfaces {
+            let ips = if interface.ip_addresses.is_empty() {
+                "-".to_string()
+            } else {
+                interface.ip_addresses.join(", ")
+            };
+
+            let mac = interface.mac_address.as_deref().unwrap_or("-");
+
+            overview_lines.push(Line::from(interface.name.clone().bold()));
+            overview_lines.push(Line::from(format!("  IPs: {ips}")));
+            overview_lines.push(Line::from(format!("  MAC: {mac}")));
+            overview_lines.push(Line::from(format!(
+                "  RX: {} bytes / {} packets",
+                interface.rx_bytes, interface.rx_packets
+            )));
+            overview_lines.push(Line::from(format!(
+                "  TX: {} bytes / {} packets",
+                interface.tx_bytes, interface.tx_packets
+            )));
+            overview_lines.push(Line::from(""));
+        }
+    }
+
     frame.render_widget(
-        Paragraph::new(vec![
-            Line::from(format!("Status: {}", state.status)),
-            Line::from(format!("Uptime: {}s", state.uptime_seconds)),
-            Line::from(format!("Refreshes: {}", state.refresh_count)),
-        ])
-        .block(Block::default().borders(Borders::ALL).title("Overview")),
+        Paragraph::new(overview_lines)
+            .block(Block::default().borders(Borders::ALL).title("Overview")),
         left,
     );
 
+    let system_load_block = Block::default().borders(Borders::ALL).title("System load");
+    let system_load_area = system_load_block.inner(right);
+    frame.render_widget(system_load_block, right);
+
+    let [memory_area, cpu_area] = Layout::vertical([Constraint::Length(5), Constraint::Min(6)])
+        .margin(1)
+        .areas(system_load_area);
+
+    let memory_ratio = if state.memory_total_bytes == 0 {
+        0.0
+    } else {
+        state.memory_used_bytes as f64 / state.memory_total_bytes as f64
+    };
+
     frame.render_widget(
-        Paragraph::new(vec![
-            Line::from("HTTP endpoints:"),
-            Line::from(format!("- GET http://{}/", state.server_addr)),
-            Line::from(format!("- GET http://{}/health", state.server_addr)),
-            Line::from(format!("- GET http://{}/status", state.server_addr)),
-        ])
-        .block(Block::default().borders(Borders::ALL).title("Axum API")),
-        right,
+        Gauge::default()
+            .block(Block::default().borders(Borders::ALL).title("Memory"))
+            .gauge_style(Style::default().fg(Color::LightMagenta))
+            .ratio(memory_ratio.clamp(0.0, 1.0))
+            .label(Span::raw(format!(
+                "{} / {} ({:.0}%)",
+                format_bytes(state.memory_used_bytes),
+                format_bytes(state.memory_total_bytes),
+                memory_ratio * 100.0
+            )))
+            .use_unicode(true),
+        memory_area,
+    );
+
+    let cpu_bars: Vec<Bar> = state
+        .cpu_usages
+        .iter()
+        .enumerate()
+        .map(|(index, usage)| {
+            Bar::default()
+                .value(*usage)
+                .label(Line::from(format!("CPU{index}")))
+                .text_value(format!("{usage:>3}%"))
+                .style(Style::default().fg(Color::Cyan))
+                .value_style(Style::default().fg(Color::Black).bg(Color::Cyan).bold())
+        })
+        .collect();
+
+    frame.render_widget(
+        BarChart::default()
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title("Per-CPU usage"),
+            )
+            .direction(Direction::Horizontal)
+            .data(BarGroup::default().bars(&cpu_bars))
+            .max(100)
+            .bar_width(1)
+            .bar_gap(0)
+            .value_style(Style::default().fg(Color::Black).bg(Color::Cyan).bold())
+            .label_style(Style::default().fg(Color::White)),
+        cpu_area,
     );
 
     frame.render_widget(
@@ -89,4 +168,18 @@ fn render(frame: &mut Frame, state: &DashboardState) {
             .block(Block::default().borders(Borders::ALL).title("Controls")),
         footer,
     );
+}
+
+fn format_bytes(bytes: u64) -> String {
+    const UNITS: [&str; 5] = ["B", "KiB", "MiB", "GiB", "TiB"];
+
+    let mut value = bytes as f64;
+    let mut unit_index = 0;
+
+    while value >= 1024.0 && unit_index < UNITS.len() - 1 {
+        value /= 1024.0;
+        unit_index += 1;
+    }
+
+    format!("{value:.1} {}", UNITS[unit_index])
 }
