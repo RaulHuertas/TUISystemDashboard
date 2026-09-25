@@ -1,4 +1,7 @@
-use std::{io, time::Duration};
+use std::{
+    io,
+    time::{Duration, Instant},
+};
 
 use crossterm::{
     event::{self, Event, KeyCode, KeyEventKind},
@@ -31,7 +34,14 @@ pub async fn run_tui(state: SharedState) -> io::Result<()> {
 }
 
 async fn run_app(terminal: &mut DefaultTerminal, state: SharedState) -> io::Result<()> {
+    let mut last_full_redraw = Instant::now();
+
     loop {
+        if last_full_redraw.elapsed() >= Duration::from_secs(10) {
+            terminal.clear()?;
+            last_full_redraw = Instant::now();
+        }
+
         let snapshot = state.read().await.clone();
         terminal.draw(|frame| render(frame, &snapshot))?;
 
